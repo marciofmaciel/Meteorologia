@@ -169,10 +169,10 @@ if api_key:
                 dados_5dias = []
                 for item in lista:
                     dt_txt = item["dt_txt"]
-                    temp_forecast = item["main"]["temp"]
-                    forecast_desc = item["weather"][0]["description"].capitalize()
+                    temp = item["main"]["temp"]
+                    desc = item["weather"][0]["description"].capitalize()
                     icon = item["weather"][0]["icon"]
-                    dados_5dias.append({"data": dt_txt, "temp": temp, "desc": forecast_desc, "icon": icon})
+                    dados_5dias.append({"data": dt_txt, "temp": temp, "desc": desc, "icon": icon})
                 df = pd.DataFrame(dados_5dias)
                 # Seleciona apenas 1 previsão por dia (meio-dia)
                 df["data"] = pd.to_datetime(df["data"])
@@ -207,7 +207,8 @@ if api_key:
                 st.markdown(f"<div style='text-align:center; color:#9ca3af; font-size:0.95em'>{desc}</div>", unsafe_allow_html=True)
                 # Recomendação/alerta para cidade/condição (sempre mostra algo)
                 obs1 = desc_alerta(desc)
-
+                if not obs1:
+                    obs1 = "Consulte sempre as condições antes de sair."
                 st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{obs1}</div>", unsafe_allow_html=True)
 
             with col2:
@@ -216,7 +217,10 @@ if api_key:
                 st.markdown(f"<div style='text-align:center; font-size:1.2em'>{sensacao_icon} <span style='font-size:0.95em'>{feels_like:.1f}°C</span></div>", unsafe_allow_html=True)
                 # Recomendação/alerta para temperatura/sensação (sempre mostra algo)
                 obs2 = sensacao_texto
-                st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{sensacao_texto}</div>", unsafe_allow_html=True)
+                if not obs2:
+                    obs2 = "Temperatura confortável."
+                st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{obs2}</div>", unsafe_allow_html=True)
+
             with col3:
                 # Barra de progresso moderna para umidade
                 st.markdown("<div style='text-align:center; font-weight:bold; font-size:1.1em'>Umidade</div>", unsafe_allow_html=True)
@@ -232,18 +236,20 @@ if api_key:
                     obs3 = "Umidade confortável."
                 st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{obs3}</div>", unsafe_allow_html=True)
 
-                # Definir ícone e texto de risco do vento
-                vento_icon, vento_texto = risco_vento_icon(vento)
+        with col4:
+            vento_icon, vento_texto = risco_vento_icon(vento)
+            st.markdown(f"<div style='text-align:center; font-size:2em'>{vento_icon}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='text-align:center; font-size:1.1em'>{vento} km/h</div>", unsafe_allow_html=True)
+            # Recomendação/alerta para vento (sempre mostra algo)
+            obs4 = vento_texto
+            if not obs4:
+                obs4 = "Vento tranquilo."
+            st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{obs4}</div>", unsafe_allow_html=True)
 
-                st.markdown(f"<div style='text-align:center; font-size:2em'>{vento_icon}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div style='text-align:center; font-size:1.1em'>{vento} km/h</div>", unsafe_allow_html=True)
-                # Recomendação/alerta para vento (sempre mostra algo)
-                obs4 = vento_texto
-                if not obs4:
-                    obs4 = "Vento tranquilo."
-                st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{obs4}</div>", unsafe_allow_html=True)
+# Fim do bloco if api_key
 
-            st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{vento_texto}</div>", unsafe_allow_html=True)
+
+
 # --- FASE 6: ITERAÇÃO E REFINAMENTO ---
 # Nota: O estado atual utiliza st.cache_data para performance.
 # Próximas iterações sugeridas: Gráficos de previsão para 5 dias e mapas.
