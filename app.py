@@ -141,10 +141,45 @@ if api_key:
 
             # Fase 1.2 e 1.4: Layout do Painel e Ícones Gráficos
 
-            # Layout 4 colunas minimalistas
-            # Layout 5 colunas: cidade, temperatura, umidade, vento, pressão
-            col1, col2, col3, col4, col5 = st.columns(5)
-            with col5:
+            # Layout 6 colunas: cidade, temperatura, umidade, vento, pressão, índice UV
+            col1, col2, col3, col4, col5, col6 = st.columns(6)
+                        # Obter índice UV (requisição separada pois a API de weather não retorna UV diretamente)
+try:
+    lat = dados['coord']['lat']
+    lon = dados['coord']['lon']
+    url_uv = f"http://api.openweathermap.org/data/2.5/uvi?appid={api_key}&lat={lat}&lon={lon}"
+    response_uv = requests.get(url_uv, timeout=10)
+    if response_uv.status_code == 200:
+        indice_uv = response_uv.json().get('value', None)
+    else:
+        indice_uv = None
+except Exception:
+    indice_uv = None
+with col6:
+    st.markdown("<div style='text-align:center; font-weight:bold; font-size:1.1em'>Índice UV</div>", unsafe_allow_html=True)
+    if indice_uv is not None:
+        if indice_uv < 3:
+            uv_risco = "Baixo"
+            uv_cor = "#22c55e"
+        elif indice_uv < 6:
+            uv_risco = "Moderado"
+            uv_cor = "#eab308"
+        elif indice_uv < 8:
+            uv_risco = "Alto"
+            uv_cor = "#f59e42"
+        elif indice_uv < 11:
+            uv_risco = "Muito Alto"
+            uv_cor = "#ef4444"
+        else:
+            uv_risco = "Extremo"
+            uv_cor = "#a21caf"
+        st.markdown(f"""
+            <div style='text-align:center; font-size:2em; font-weight:bold; color:{uv_cor}'>{indice_uv:.1f}</div>
+            <div style='text-align:center; font-size:0.95em; color:{uv_cor}'>{uv_risco}</div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("<div style='text-align:center; color:#888'>Não disponível</div>", unsafe_allow_html=True)
+with col5:
                 st.markdown("""
                 <div style='text-align:center; background:#f8fafc; border-radius:12px; padding:12px 6px 10px 6px; box-shadow:0 2px 8px #0001; margin-bottom:8px;'>
                     <div style='font-weight:bold; font-size:1.1em; margin-bottom:2px;'>Pressão Atmosférica</div>
@@ -158,13 +193,13 @@ if api_key:
                 """.format(pressao_hpa, pressao_mmhg), unsafe_allow_html=True)
 
             # --- PREVISÃO DE 5 DIAS ---
-            st.markdown("""
+st.markdown("""
                 <h3 style='margin-top:32px; margin-bottom:8px; color:#222; text-align:left;'>Previsão para os próximos 5 dias</h3>
             """, unsafe_allow_html=True)
-            previsao = buscar_previsao_5dias(cidade, api_key)
-            if "erro" in previsao:
+previsao = buscar_previsao_5dias(cidade, api_key)
+if "erro" in previsao:
                 st.warning(previsao["erro"])
-            else:
+else:
                 lista = previsao["list"]
                 dados_5dias = []
                 for item in lista:
@@ -201,7 +236,7 @@ if api_key:
                 for i, col in enumerate(cols):
                     col.markdown(f"<div style='text-align:center;'><img src='http://openweathermap.org/img/wn/{icones.iloc[i]}@2x.png' width='38'><br><span style='font-size:1.1em; font-weight:600'>{temps.iloc[i]:.1f}°C</span><br><span style='font-size:0.95em; color:#666'>{dias.iloc[i]}</span><br><span style='font-size:0.85em; color:#888'>{descricoes.iloc[i]}</span></div>", unsafe_allow_html=True)
 
-            with col1:
+with col1:
                 st.markdown(f"<div style='text-align:center'><h4 style='margin-bottom:2px'>{dados['name']}, {dados['sys']['country']}</h4>"
                             f"<img src='http://openweathermap.org/img/wn/{icon_id}@4x.png' width='48'></div>", unsafe_allow_html=True)
                 st.markdown(f"<div style='text-align:center; color:#9ca3af; font-size:0.95em'>{desc}</div>", unsafe_allow_html=True)
@@ -211,7 +246,7 @@ if api_key:
                     obs1 = "Consulte sempre as condições antes de sair."
                 st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{obs1}</div>", unsafe_allow_html=True)
 
-            with col2:
+with col2:
                 st.markdown(f"<div style='text-align:center; font-size:2.2em; font-weight:bold'>{temp:.1f}°C</div>", unsafe_allow_html=True)
                 sensacao_icon, sensacao_texto = risco_sensacao_icon(feels_like)
                 st.markdown(f"<div style='text-align:center; font-size:1.2em'>{sensacao_icon} <span style='font-size:0.95em'>{feels_like:.1f}°C</span></div>", unsafe_allow_html=True)
@@ -221,7 +256,7 @@ if api_key:
                     obs2 = "Temperatura confortável."
                 st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{obs2}</div>", unsafe_allow_html=True)
 
-            with col3:
+with col3:
                 # Barra de progresso moderna para umidade
                 st.markdown("<div style='text-align:center; font-weight:bold; font-size:1.1em'>Umidade</div>", unsafe_allow_html=True)
                 st.markdown(f'''
@@ -236,7 +271,7 @@ if api_key:
                     obs3 = "Umidade confortável."
                 st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{obs3}</div>", unsafe_allow_html=True)
 
-        with col4:
+with col4:
             vento_icon, vento_texto = risco_vento_icon(vento)
             st.markdown(f"<div style='text-align:center; font-size:2em'>{vento_icon}</div>", unsafe_allow_html=True)
             st.markdown(f"<div style='text-align:center; font-size:1.1em'>{vento} km/h</div>", unsafe_allow_html=True)
