@@ -1,6 +1,32 @@
+def desc_alerta(desc):
+    desc = desc.lower()
+    if "chuva" in desc:
+        return "Leve guarda-chuva e atenção a vias escorregadias."
+    if "nublado" in desc:
+        return "Céu encoberto, boa opção para atividades ao ar livre."
+    if "limpo" in desc or "ensolarado" in desc:
+        return "Use protetor solar e hidrate-se."
+    if "tempestade" in desc:
+        return "Evite áreas abertas e fique atento a alagamentos."
+    return "Consulte sempre as condições antes de sair."
+
 import streamlit as st
 import requests
 import plotly.graph_objects as go
+import pandas as pd
+
+# --- FASE EXTRA: PREVISÃO DE 5 DIAS ---
+@st.cache_data(ttl=600)
+def buscar_previsao_5dias(cidade, api_key):
+    url = f"http://api.openweathermap.org/data/2.5/forecast?q={cidade}&appid={api_key}&units=metric&lang=pt_br"
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code == 404:
+            return {"erro": "Cidade não encontrada para previsão de 5 dias."}
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException:
+        return {"erro": "Erro de conexão na previsão de 5 dias."}
 
 # --- FASE 1: CONFIGURAÇÃO DA UI E ESTILO (Modern Dark) ---
 st.set_page_config(page_title="Dashboard Meteorológico", page_icon="🌤️", layout="wide")
@@ -108,26 +134,72 @@ if api_key:
             feels_like = dados['main']['feels_like']
             umidade = dados['main']['humidity']
             vento = dados['wind']['speed']
+            pressao_hpa = dados['main']['pressure']
+            pressao_mmhg = pressao_hpa * 0.750062
             desc = dados['weather'][0]['description'].capitalize()
             icon_id = dados['weather'][0]['icon']
 
             # Fase 1.2 e 1.4: Layout do Painel e Ícones Gráficos
 
             # Layout 4 colunas minimalistas
-            col1, col2, col3, col4 = st.columns(4)
+            # Layout 5 colunas: cidade, temperatura, umidade, vento, pressão
+            col1, col2, col3, col4, col5 = st.columns(5)
+            with col5:
+                st.markdown("""
+                <div style='text-align:center; background:#f8fafc; border-radius:12px; padding:12px 6px 10px 6px; box-shadow:0 2px 8px #0001; margin-bottom:8px;'>
+                    <div style='font-weight:bold; font-size:1.1em; margin-bottom:2px;'>Pressão Atmosférica</div>
+                    <div style='font-size:1.6em; color:#1e293b; font-weight:600;'>{:.0f} <span style='font-size:0.6em; color:#64748b;'>hPa</span></div>
+                    <div style='font-size:1.15em; color:#334155; margin-bottom:4px;'>{:.1f} <span style='font-size:0.7em; color:#64748b;'>mmHg</span></div>
+                    <div style='font-size:0.90em; color:#666; margin-top:4px;'>
+                        <span title='hectopascal'>hPa</span> (<a href='https://pt.wikipedia.org/wiki/Hectopascal' target='_blank' style='color:#2563eb;'>saiba mais</a>)<br>
+                        <span title='milímetro de mercúrio'>mmHg</span> (<a href='https://pt.wikipedia.org/wiki/Mil%C3%ADmetro_de_merc%C3%BArio' target='_blank' style='color:#2563eb;'>saiba mais</a>)
+                    </div>
+                </div>
+                """.format(pressao_hpa, pressao_mmhg), unsafe_allow_html=True)
 
-            # Função para recomendações/alertas de condição do tempo
-            def desc_alerta(desc):
-                desc = desc.lower()
-                if "chuva" in desc:
-                    return "Leve guarda-chuva e atenção a vias escorregadias."
-                if "nublado" in desc:
-                    return "Céu encoberto, boa opção para atividades ao ar livre."
-                if "limpo" in desc or "ensolarado" in desc:
-                    return "Use protetor solar e hidrate-se."
-                if "tempestade" in desc:
-                    return "Evite áreas abertas e fique atento a alagamentos."
-                return "Consulte sempre as condições antes de sair."
+            # --- PREVISÃO DE 5 DIAS ---
+            st.markdown("""
+                <h3 style='margin-top:32px; margin-bottom:8px; color:#222; text-align:left;'>Previsão para os próximos 5 dias</h3>
+            """, unsafe_allow_html=True)
+            previsao = buscar_previsao_5dias(cidade, api_key)
+            if "erro" in previsao:
+                st.warning(previsao["erro"])
+            else:
+                lista = previsao["list"]
+                dados_5dias = []
+                for item in lista:
+                    dt_txt = item["dt_txt"]
+                    temp_forecast = item["main"]["temp"]
+                    forecast_desc = item["weather"][0]["description"].capitalize()
+                    icon = item["weather"][0]["icon"]
+                    dados_5dias.append({"data": dt_txt, "temp": temp, "desc": forecast_desc, "icon": icon})
+                df = pd.DataFrame(dados_5dias)
+                # Seleciona apenas 1 previsão por dia (meio-dia)
+                df["data"] = pd.to_datetime(df["data"])
+                df_dia = df[df["data"].dt.hour == 12].copy()
+                if df_dia.empty:
+                    df_dia = df.iloc[::8].copy()  # fallback: 1 a cada 8 (3h*8=24h)
+                dias = df_dia["data"].dt.strftime("%d/%m")
+                temps = df_dia["temp"]
+                descricoes = df_dia["desc"]
+                icones = df_dia["icon"]
+                # Gráfico de linha de temperatura
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(x=dias, y=temps, mode='lines+markers', name='Temp. (°C)', line=dict(color='#2563eb', width=3)))
+                fig.update_layout(
+                    xaxis_title='Dia',
+                    yaxis_title='Temperatura (°C)',
+                    template='plotly_white',
+                    height=320,
+                    margin=dict(l=20, r=20, t=30, b=20),
+                    plot_bgcolor='#f8fafc',
+                    paper_bgcolor='#f8fafc',
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                # Cards resumidos
+                cols = st.columns(len(dias))
+                for i, col in enumerate(cols):
+                    col.markdown(f"<div style='text-align:center;'><img src='http://openweathermap.org/img/wn/{icones.iloc[i]}@2x.png' width='38'><br><span style='font-size:1.1em; font-weight:600'>{temps.iloc[i]:.1f}°C</span><br><span style='font-size:0.95em; color:#666'>{dias.iloc[i]}</span><br><span style='font-size:0.85em; color:#888'>{descricoes.iloc[i]}</span></div>", unsafe_allow_html=True)
 
             with col1:
                 st.markdown(f"<div style='text-align:center'><h4 style='margin-bottom:2px'>{dados['name']}, {dados['sys']['country']}</h4>"
@@ -135,8 +207,7 @@ if api_key:
                 st.markdown(f"<div style='text-align:center; color:#9ca3af; font-size:0.95em'>{desc}</div>", unsafe_allow_html=True)
                 # Recomendação/alerta para cidade/condição (sempre mostra algo)
                 obs1 = desc_alerta(desc)
-                if not obs1:
-                    obs1 = "Consulte sempre as condições antes de sair."
+
                 st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{obs1}</div>", unsafe_allow_html=True)
 
             with col2:
@@ -145,10 +216,7 @@ if api_key:
                 st.markdown(f"<div style='text-align:center; font-size:1.2em'>{sensacao_icon} <span style='font-size:0.95em'>{feels_like:.1f}°C</span></div>", unsafe_allow_html=True)
                 # Recomendação/alerta para temperatura/sensação (sempre mostra algo)
                 obs2 = sensacao_texto
-                if not obs2:
-                    obs2 = "Temperatura confortável."
-                st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{obs2}</div>", unsafe_allow_html=True)
-
+                st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{sensacao_texto}</div>", unsafe_allow_html=True)
             with col3:
                 # Barra de progresso moderna para umidade
                 st.markdown("<div style='text-align:center; font-weight:bold; font-size:1.1em'>Umidade</div>", unsafe_allow_html=True)
@@ -162,25 +230,20 @@ if api_key:
                 obs3 = risco_umidade_texto(umidade)
                 if not obs3:
                     obs3 = "Umidade confortável."
-            st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{obs3}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{obs3}</div>", unsafe_allow_html=True)
 
-        with col4:
-            vento_icon, vento_texto = risco_vento_icon(vento)
-            st.markdown(f"<div style='text-align:center; font-size:2em'>{vento_icon}</div>", unsafe_allow_html=True)
-            st.markdown(f"<div style='text-align:center; font-size:1.1em'>{vento} km/h</div>", unsafe_allow_html=True)
+                # Definir ícone e texto de risco do vento
+                vento_icon, vento_texto = risco_vento_icon(vento)
+
+                st.markdown(f"<div style='text-align:center; font-size:2em'>{vento_icon}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='text-align:center; font-size:1.1em'>{vento} km/h</div>", unsafe_allow_html=True)
+                # Recomendação/alerta para vento (sempre mostra algo)
+                obs4 = vento_texto
+                if not obs4:
+                    obs4 = "Vento tranquilo."
+                st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{obs4}</div>", unsafe_allow_html=True)
+
             st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{vento_texto}</div>", unsafe_allow_html=True)
-            # Recomendação/alerta para vento (sempre mostra algo)
-            obs4 = vento_texto
-            if not obs4:
-                obs4 = "Vento tranquilo."
-            st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{obs4}</div>", unsafe_allow_html=True)
-
-# Fim do bloco if api_key
-
-# (Removido: função desc_alerta já definida acima)
-
-# (Removido 'else:' inválido)
-
 # --- FASE 6: ITERAÇÃO E REFINAMENTO ---
 # Nota: O estado atual utiliza st.cache_data para performance.
 # Próximas iterações sugeridas: Gráficos de previsão para 5 dias e mapas.
