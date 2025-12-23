@@ -3,7 +3,7 @@ import requests
 import plotly.graph_objects as go
 
 # --- FASE 1: CONFIGURAÇÃO DA UI E ESTILO (Modern Dark) ---
-st.set_page_config(page_title="Dashboard Meteorológico", page_icon="🌤️", layout="centered")
+st.set_page_config(page_title="Dashboard Meteorológico", page_icon="🌤️", layout="wide")
 
 # Injeção de CSS para o esquema de cores Modern Dark e design de cards
 st.markdown("""
@@ -18,8 +18,20 @@ st.markdown("""
         text-align: center; 
         margin-bottom: 25px;
         border: 1px solid #e5e7eb;
+        max-width: 500px;
+        margin-left: auto;
+        margin-right: auto;
+        box-sizing: border-box;
     }
     h1, h2, h3 { color: #222222; font-family: 'Inter', sans-serif; }
+    @media (max-width: 900px) {
+        .weather-card { padding: 15px; max-width: 98vw; }
+        .stMetric { padding: 10px; font-size: 0.95em; }
+    }
+    @media (max-width: 600px) {
+        .weather-card { padding: 8px; max-width: 100vw; }
+        .stMetric { padding: 6px; font-size: 0.85em; }
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -57,12 +69,13 @@ cidade = st.text_input("Buscar cidade:", placeholder="Ex: São Paulo, BR", value
 
 # Função para retornar ícone e texto de risco do vento
 def risco_vento_icon(vento):
+    # Ícones distintos para cada nível de risco de vento
     if vento < 10:
-        return "🌴", "Baixo risco para pessoas"
+        return "💨", "Baixo risco para pessoas"  # vento leve
     elif vento < 20:
-        return "🌴‍➡️", "Atenção: vento moderado"
+        return "🌬️", "Atenção: vento moderado"  # vento moderado
     else:
-        return "🌴💨", "Perigo: vento forte"
+        return "🌪️", "Perigo: vento forte"  # vento forte
 
 # Função para retornar ícone e texto de risco da sensação térmica
 def risco_sensacao_icon(feels_like):
@@ -99,80 +112,74 @@ if api_key:
             icon_id = dados['weather'][0]['icon']
 
             # Fase 1.2 e 1.4: Layout do Painel e Ícones Gráficos
-            st.markdown(f"""
-                <div class="weather-card">
-                    <h2>{dados['name']}, {dados['sys']['country']}</h2>
-                    <img src="http://openweathermap.org/img/wn/{icon_id}@4x.png" width="120">
-                    <h1 style="font-size: 60px; margin: 0;">{temp:.1f}°C</h1>
-                    <p style="font-size: 20px; color: #9ca3af;">{desc}</p>
-                </div>
-            """, unsafe_allow_html=True)
 
-            # Ponteiro analógico para umidade
-            gauge = go.Figure(go.Indicator(
-                mode="gauge+number",
-                value=umidade,
-                title={'text': "Umidade (%)", 'font': {'size': 16}},
-                gauge={
-                    'axis': {'range': [0, 100]},
-                    'bar': {'color': "#222222"},
-                    'steps': [
-                        {'range': [0, 30], 'color': "red"},
-                        {'range': [30, 60], 'color': "yellow"},
-                        {'range': [60, 100], 'color': "green"},
-                    ],
-                    'threshold': {
-                        'line': {'color': "black", 'width': 4},
-                        'thickness': 0.75,
-                        'value': umidade
-                    }
-                }
-            ))
-            gauge.update_layout(
-                margin=dict(l=10, r=10, t=30, b=10),
-                height=180,  # Altura reduzida
-            )
-            # Colunas para métricas secundárias
-            col1, col2, col3 = st.columns([1,1,1])  # Proporção igual, responsivo
+            # Layout 4 colunas minimalistas
+            col1, col2, col3, col4 = st.columns(4)
 
-            # Coluna 1: Barra de umidade colorida + métrica
+            # Função para recomendações/alertas de condição do tempo
+            def desc_alerta(desc):
+                desc = desc.lower()
+                if "chuva" in desc:
+                    return "Leve guarda-chuva e atenção a vias escorregadias."
+                if "nublado" in desc:
+                    return "Céu encoberto, boa opção para atividades ao ar livre."
+                if "limpo" in desc or "ensolarado" in desc:
+                    return "Use protetor solar e hidrate-se."
+                if "tempestade" in desc:
+                    return "Evite áreas abertas e fique atento a alagamentos."
+                return "Consulte sempre as condições antes de sair."
+
             with col1:
-                col1.metric("Umidade", f"{umidade} %")
-                st.markdown(
-                    f"""
-                    <div style="width: 100%; min-width: 80px; height: 28px; background: linear-gradient(to right, red 0%, red 30%, yellow 30%, yellow 60%, green 60%, green 100%); border-radius: 8px; margin-top: 8px; position: relative;">
-                        <div style="position: absolute; left: {umidade}%; top: 0; height: 100%; width: 2px; background: #222; border-radius: 2px;"></div>
-                        <div style="position: absolute; left: {umidade-4 if umidade>4 else 0}%; top: 0; height: 100%; width: 40px; color: #222; font-weight: bold; font-size: 14px; display: flex; align-items: center; justify-content: center;">
-                            {umidade}%
-                        </div>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 12px; color: #666; margin-top: 2px;">
-                        <span>0%</span>
-                        <span>30%</span>
-                        <span>60%</span>
-                        <span>100%</span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-                st.markdown(
-                    f"<div style='text-align:center; font-size: 0.95em; color: #666;'>{risco_umidade_texto(umidade)}</div>",
-                    unsafe_allow_html=True
-                )
+                st.markdown(f"<div style='text-align:center'><h4 style='margin-bottom:2px'>{dados['name']}, {dados['sys']['country']}</h4>"
+                            f"<img src='http://openweathermap.org/img/wn/{icon_id}@4x.png' width='48'></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='text-align:center; color:#9ca3af; font-size:0.95em'>{desc}</div>", unsafe_allow_html=True)
+                # Recomendação/alerta para cidade/condição (sempre mostra algo)
+                obs1 = desc_alerta(desc)
+                if not obs1:
+                    obs1 = "Consulte sempre as condições antes de sair."
+                st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{obs1}</div>", unsafe_allow_html=True)
 
             with col2:
-                vento_icon, vento_texto = risco_vento_icon(vento)
-                st.markdown(f"<div style='font-size: 2.2em; text-align:center'>{vento_icon}</div>", unsafe_allow_html=True)
-                col2.metric("Vento", f"{vento} km/h")
-                st.markdown(f"<div style='text-align:center; font-size: 0.95em; color: #666;'>{vento_texto}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='text-align:center; font-size:2.2em; font-weight:bold'>{temp:.1f}°C</div>", unsafe_allow_html=True)
+                sensacao_icon, sensacao_texto = risco_sensacao_icon(feels_like)
+                st.markdown(f"<div style='text-align:center; font-size:1.2em'>{sensacao_icon} <span style='font-size:0.95em'>{feels_like:.1f}°C</span></div>", unsafe_allow_html=True)
+                # Recomendação/alerta para temperatura/sensação (sempre mostra algo)
+                obs2 = sensacao_texto
+                if not obs2:
+                    obs2 = "Temperatura confortável."
+                st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{obs2}</div>", unsafe_allow_html=True)
 
             with col3:
-                sensacao_icon, sensacao_texto = risco_sensacao_icon(feels_like)
-                st.markdown(f"<div style='font-size: 2.2em; text-align:center'>{sensacao_icon}</div>", unsafe_allow_html=True)
-                col3.metric("Sensação", f"{feels_like:.1f} °C")
-                st.markdown(f"<div style='text-align:center; font-size: 0.95em; color: #666;'>{sensacao_texto}</div>", unsafe_allow_html=True)
-else:
-    st.warning("Por favor, insira sua chave de API na barra lateral para começar.")
+                # Barra de progresso moderna para umidade
+                st.markdown("<div style='text-align:center; font-weight:bold; font-size:1.1em'>Umidade</div>", unsafe_allow_html=True)
+                st.markdown(f'''
+                    <div style="width: 100%; background: #e0e7ef; border-radius: 12px; height: 22px; box-shadow: 0 2px 8px #0001; margin-bottom: 6px; position: relative;">
+                        <div style="width: {umidade}%; background: linear-gradient(90deg, #00BFFF 0%, #7be495 100%); height: 100%; border-radius: 12px; transition: width 0.6s;"></div>
+                        <div style="position: absolute; left: 50%; top: 0; transform: translateX(-50%); height: 100%; display: flex; align-items: center; font-weight: bold; color: #222; font-size: 1em;">{umidade}%</div>
+                    </div>
+                ''', unsafe_allow_html=True)
+                # Recomendação/alerta para umidade (sempre mostra algo)
+                obs3 = risco_umidade_texto(umidade)
+                if not obs3:
+                    obs3 = "Umidade confortável."
+            st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{obs3}</div>", unsafe_allow_html=True)
+
+        with col4:
+            vento_icon, vento_texto = risco_vento_icon(vento)
+            st.markdown(f"<div style='text-align:center; font-size:2em'>{vento_icon}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='text-align:center; font-size:1.1em'>{vento} km/h</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{vento_texto}</div>", unsafe_allow_html=True)
+            # Recomendação/alerta para vento (sempre mostra algo)
+            obs4 = vento_texto
+            if not obs4:
+                obs4 = "Vento tranquilo."
+            st.markdown(f"<div style='text-align:center; font-size:0.95em; color:#666'>{obs4}</div>", unsafe_allow_html=True)
+
+# Fim do bloco if api_key
+
+# (Removido: função desc_alerta já definida acima)
+
+# (Removido 'else:' inválido)
 
 # --- FASE 6: ITERAÇÃO E REFINAMENTO ---
 # Nota: O estado atual utiliza st.cache_data para performance.
